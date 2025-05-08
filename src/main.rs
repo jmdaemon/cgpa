@@ -1,32 +1,18 @@
-use std::{error::Error, io};
+use std::{error::Error, io::{self, Write}};
 
 use csv::{ReaderBuilder, Trim};
-use gpa::{create_csv_reader, read_gpa_scale, Grade, GradeScale};
+use gpa::{create_csv_reader, read_gpa_scale, GradePoint, GradePointAverageScale};
 use serde::{de::{self, Visitor}, Deserialize, Deserializer};
 
 fn main() -> Result<(), Box<dyn Error>> {
     
     // Read the specific gpa scaling
     // Letter, Grade Point, Conversion
-    let lines = vec!(
-        "A+, 4.33, 90,100",
-        "A , 4.00, 85,89",
-        "A-, 3.67, 80,84",
-        "B+, 3.33, 76,79",
-        "B , 3.00, 72,75",
-        "B-, 2.67, 68,71",
-        "C+, 2.33, 64,67",
-        "C , 2.00, 60,63",
-        "C-, 1.67, 56,59",
-        "D , 1.00, 50,55",
-        "F , 0.00,  0,49",
-    ).into_iter().map(String::from).collect::<Vec<String>>();
-
-    let lines = lines.join("\n");
+    let lines = gpa_scale().join("\n");
 
     let mut rdr = create_csv_reader(lines.as_bytes());
     for result in rdr.deserialize() {
-        let record: Grade = result?;
+        let record: GradePoint = result?;
         println!("{:?}", record);
     }
 
@@ -37,7 +23,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Prompt student for final grade & check with grade scale
     let input = 84u8;
 
-    let g = scale.get_grade(&input);
+    let g = scale.calc_gpa(&input);
 
     if let Some(grade) = g {
         println!("Student received grade of {:?}", grade);
@@ -71,11 +57,57 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("{:?}", record.percent.to_weight());
     }
 
-    let weights= rdr.deserialize()
+    let mut rdr = 
+        ReaderBuilder::new()
+            .has_headers(false)
+            .trim(Trim::All)
+            .from_reader(lines.as_bytes());
+    let weights = rdr.deserialize()
         .into_iter()
         .flat_map(Result::ok)
         .collect();
-    let weighs = GradeWeights { weights };
+    let weights = GradeWeights { weights };
+
+    println!("{:?}", weights);
+    // Obtain the cumulative grading for a student 
+    let mut grades = vec!();
+    for weight in &weights.weights {
+        // Get a line, parse the value into a number
+        // let prompt = format!("Enter grade for {}: ", weight.title);
+        let prompt = format!("Enter grade for {} [0-100%]: ", weight.title);
+        let input = User::prompt(&prompt);
+        
+        let grade = input.parse::<u8>()?;
+        grades.push(grade);
+    }
+
+    let cumulative: f64 = grades
+        .into_iter()
+        .zip(&weights.weights)
+        .map(|(grade , grading)|
+            // Formula:
+            // 
+
+            grade as f64 * grading.percent.to_weight()
+            )
+        .sum();
+    let cumulative = cumulative.round() as u8;
+    println!("{}", cumulative);
+
+    // Show the grade of the student
+    let lines = gpa_scale().join("\n");
+    let mut rdr = create_csv_reader(lines.as_bytes());
+    let scale = read_gpa_scale(rdr);
+
+    // let g = scale.get_grade(&input);
+    let g = scale.calc_gpa(&cumulative);
+
+    if let Some(grade) = g {
+        println!("Student received grade of {:?}", grade);
+    } else {
+        println!("Grading was unsuccessful");
+    }
+
 
     // Parse a student's grading and calculate the end gpa based on the weights
     // let data = "
@@ -85,6 +117,47 @@ fn main() -> Result<(), Box<dyn Error>> {
     // println!("Hello, world!");
 
     Ok(())
+}
+
+// Fixtures
+fn gpa_scale() -> Vec<String> {
+    vec!(
+        "A+, 4.33, 90,100",
+        "A , 4.00, 85,89",
+        "A-, 3.67, 80,84",
+        "B+, 3.33, 76,79",
+        "B , 3.00, 72,75",
+        "B-, 2.67, 68,71",
+        "C+, 2.33, 64,67",
+        "C , 2.00, 60,63",
+        "C-, 1.67, 56,59",
+        "D , 1.00, 50,55",
+        "F , 0.00,  0,49",
+    ).into_iter().map(String::from).collect::<Vec<String>>()
+}
+
+struct User;
+
+impl User {
+    fn prompt(prompt: &str) -> String {
+        print!("{prompt}");
+        Self::input()
+    }
+
+    fn input() -> String {
+        let input = &mut String::new();
+        io::stdout().flush();
+        io::stdin().read_line(input);
+        input.to_string().trim().to_string()
+
+        // let mut stdin = io::stdin();
+        // let input = &mut String::new();
+        // input.clear();
+        // io::stdout().flush();
+        // stdin.read_line(input);
+        // input.to_string().trim().to_string()
+
+    }
 }
 
 // To calculate a gpa we have a list of 
@@ -135,6 +208,7 @@ struct Grading {
     percent: Percent,
 }
 
+#[derive(Debug, Clone)]
 struct GradeWeights {
     weights: Vec<Grading>,
 }
@@ -146,26 +220,27 @@ pub mod gpa {
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct Grade {
+    pub struct GradePoint {
         letter: String,
         grade_point: f64,
         // conversion: Range<(u8, u8)>,
         conversion: RangeInclusive<u8>,
     }
 
-    impl Grade {
+    impl GradePoint {
         fn within(&self, value: &u8) -> bool {
             self.conversion.contains(value)
         }
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GradeScale {
-        scale: Vec<Grade>,
+    pub struct GradePointAverageScale {
+        scale: Vec<GradePoint>,
     }
+    pub type GPAScale = GradePointAverageScale;
 
-    impl GradeScale {
-        pub fn get_grade(&self, value: &u8) -> Option<Grade> {
+    impl GradePointAverageScale {
+        pub fn calc_gpa(&self, value: &u8) -> Option<GradePoint> {
             for grade in &self.scale {
                 if grade.within(value) {
                     return Some(grade.clone());
@@ -175,20 +250,20 @@ pub mod gpa {
         }
     }
 
-    pub type GradeScaleReader<'a> = Reader<&'a [u8]>;
+    pub type GPAScaleReader<'a> = Reader<&'a [u8]>;
 
-    pub fn create_csv_reader(content: &[u8]) -> GradeScaleReader {
+    pub fn create_csv_reader(content: &[u8]) -> GPAScaleReader {
         ReaderBuilder::new()
             .has_headers(false)
             .trim(Trim::All)
             .from_reader(content)
     }
 
-    pub fn read_gpa_scale(mut rdr: GradeScaleReader) -> GradeScale {
+    pub fn read_gpa_scale(mut rdr: GPAScaleReader) -> GradePointAverageScale {
         let scale = rdr.deserialize()
             .into_iter()
             .flat_map(Result::ok)
             .collect();
-        GradeScale { scale }
+        GradePointAverageScale { scale }
     }
 }
