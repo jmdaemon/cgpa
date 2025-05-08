@@ -29,10 +29,26 @@ fn main() -> Result<(), Box<dyn Error>> {
         let record: Grade = result?;
         println!("{:?}", record);
     }
+
+    let mut rdr = create_csv_reader(lines.as_bytes());
     let scale = read_gpa_scale(rdr);
+    // println!("{:?}", scale);
+
+    // Prompt student for final grade & check with grade scale
+    let input = 85u8;
+
+    let g = scale.get_grade(&input);
+
+    if let Some(grade) = g {
+        println!("Student received grade of {:?}", grade);
+    } else {
+        println!("Grading was unsuccessful");
+    }
+
+    // Check scale
 
     // Parse the course grading
-    let lines= vec!(
+    let lines = vec!(
         "3 Quizzes   , 10%",
         "2 Projects  , 20%",
         "5 Labs      , 20%",
@@ -61,10 +77,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .collect();
     let weighs = GradeWeights { weights };
 
-
     // Parse a student's grading and calculate the end gpa based on the weights
     // let data = "
     // ";
+    // TODO: Provide future projections
+
     // println!("Hello, world!");
 
     Ok(())
@@ -136,9 +153,26 @@ pub mod gpa {
         conversion: Range<u8>,
     }
 
+    impl Grade {
+        fn within(&self, value: &u8) -> bool {
+            self.conversion.contains(value)
+        }
+    }
+
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct GradeScale {
         scale: Vec<Grade>,
+    }
+
+    impl GradeScale {
+        pub fn get_grade(&self, value: &u8) -> Option<Grade> {
+            for grade in &self.scale {
+                if grade.within(value) {
+                    return Some(grade.clone());
+                }
+            }
+            return None;
+        }
     }
 
     pub type GradeScaleReader<'a> = Reader<&'a [u8]>;
