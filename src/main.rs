@@ -54,27 +54,47 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("{:?}", weights);
 
     // Calculate the cumulative weighted gpa grading of the student 
+    let mut longest = 0usize;
+    for cg in &weights.weights {
+        if cg.title.len() > longest {
+            longest = cg.title.len();
+        }
+    }
+    
     let mut grades = vec!();
     for weight in &weights.weights {
         // Get a line, parse the value into a number
         // let prompt = format!("Enter grade for {}: ", weight.title);
-        let prompt = format!("Enter grade for {} [0-100%]: ", weight.title);
+        // let prompt = Prompt::fmt_prompt_post_weight(longest, &weight.title);
+        let prompt = Prompt::fmt_prompt_pre_weight(longest, &weight.title, weight.percent.value);
         let input = User::prompt(&prompt);
         
         let grade = input.parse::<u8>()?;
         grades.push(grade);
     }
 
-    let cumulative: f64 = grades
-        .into_iter()
-        .zip(&weights.weights)
-        .map(|(grade , grading)|
-            // Formula:
-            // 
+    let weight_type = GradeWeightType::Post;
+    let cumulative: f64 = match weight_type {
+        GradeWeightType::Pre => {
+            grades
+            .into_iter()
+            .zip(&weights.weights)
+            .map(|(grade , grading)|
+                // Formula:
+                // 
 
-            grade as f64 * grading.percent.to_weight()
-            )
-        .sum();
+                grade as f64 * grading.percent.to_weight()
+                )
+            .sum()
+        }
+        GradeWeightType::Post => {
+            grades
+            .into_iter()
+            .map(|grade| grade as f64)
+            .sum()
+        }
+    };
+
     let cumulative = cumulative.round() as u8;
     println!("{}", cumulative);
 
@@ -141,6 +161,28 @@ fn show_lines<T>(mut rdr: Reader<&[u8]>) -> Result<(), Box<dyn Error>>
         println!("{:?}", record);
     }
     Ok(())
+}
+
+enum GradeWeightType {
+    Pre,
+    Post
+}
+
+struct Settings {
+}
+
+struct Prompt;
+
+impl Prompt {
+    // fn fmt_prompt_pre_weight(width: usize, s: &str, min: u8, max: u8) -> String {
+    //     format!("Enter grade for: {:>0width$} [{:>2}-{:>2}%]: ", s, min, max, width = width)
+    fn fmt_prompt_pre_weight(width: usize, s: &str, value: u8) -> String {
+        format!("Enter grade for: {:>0width$} [0-{:>2}%]: ", s, value, width = width)
+    }
+
+    fn fmt_prompt_post_weight(width: usize, s: &str) -> String {
+        format!("Enter grade for: {:>0width$} [0-100%]: ", s, width = width)
+    }
 }
 
 struct User;
