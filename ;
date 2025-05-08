@@ -31,7 +31,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     let scale = read_gpa_scale(rdr);
 
-    // Parse the course grading
+    // Now we need to parse our actual course data
+    // Parse a line in a csv file like
+    // let data = "
+    // ";
+    // println!("Hello, world!");
     let lines= vec!(
         "3 Quizzes   , 10%",
         "2 Projects  , 20%",
@@ -41,7 +45,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     let lines = lines.join("\n");
-    println!("{}", lines);
 
     let mut rdr = 
         ReaderBuilder::new()
@@ -50,31 +53,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             .from_reader(lines.as_bytes());
 
     for result in rdr.deserialize() {
-        let record: Grading = result?;
+        let record: Grade = result?;
         println!("{:?}", record);
-        println!("{:?}", record.percent.to_weight());
     }
-
-    // Parse a line in a csv file like
-    // let data = "
-    // ";
-    // println!("Hello, world!");
 
     Ok(())
 }
 
 // To calculate a gpa we have a list of 
 
-#[derive(Debug, Clone)]
 struct Percent {
     percent: String,
-    value: u8,
-}
-
-impl Percent {
-    fn to_weight(&self) -> f64 {
-        self.value as f64 / 100.0
-    }
+    // weight: f64,
+    weight: u8,
 }
 
 struct PercentVisitor;
@@ -88,15 +79,24 @@ impl<'de> Visitor<'de> for PercentVisitor {
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
         where
             E: de::Error, {
-                let s = v.split("%")
-                    .collect::<Vec<&str>>()
-                    .join("")
-                    .to_string();
-                let value = s.parse::<u8>().expect("Error: Unable to parse percent");
-                Ok(Percent { percent: v.to_owned(), value })
+                let a = v.as_bytes();
+                let s = (a[0] + a[1]).to_string();
+                let num = s.parse::<u8>().expect("Could not parse string");
+                Ok(Percent { percent: v.to_owned(), weight: num })
+                // Ok(s.parse::<u8>().expect("Could not parse string"))
+    }
+
+    fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let percent = value.to_string() + '%'; 
+        Ok(Percent { percent: v.to_owned(), weight: num })
+        // Ok(value as u8)
     }
 }
 
+// impl<'de> Deserialize<'de> for Percent {
 impl<'de> Deserialize<'de> for Percent {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
@@ -105,11 +105,20 @@ impl<'de> Deserialize<'de> for Percent {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
 struct Grading {
     title: String,
-    percent: Percent,
+    // #[serde(deserialize_with = "deserialize_percent")]
+    // weight: f64,
 }
+
+// fn read_percent<'de, D>(D) -> Result<T, D::Error> where D: Deserializer<'de> {
+// fn read_percent<D>(deserializer: D) -> Result<f64, D::Error> {
+// }
+// fn deserialize_percent<'de, D>(d: D) -> Result<f64, D::Error> where D: Deserializer<'de> {
+//     d.deserialize_str();
+//     Ok(0.00f64)
+// }
+
 
 pub mod gpa {
     use std::ops::Range;
