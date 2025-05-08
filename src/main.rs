@@ -55,7 +55,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("{:?}", record.percent.to_weight());
     }
 
-    // Parse a line in a csv file like
+    let weights= rdr.deserialize()
+        .into_iter()
+        .flat_map(Result::ok)
+        .collect();
+    let weighs = GradeWeights { weights };
+
+
+    // Parse a student's grading and calculate the end gpa based on the weights
     // let data = "
     // ";
     // println!("Hello, world!");
@@ -109,6 +116,10 @@ impl<'de> Deserialize<'de> for Percent {
 struct Grading {
     title: String,
     percent: Percent,
+}
+
+struct GradeWeights {
+    weights: Vec<Grading>,
 }
 
 pub mod gpa {
