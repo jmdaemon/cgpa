@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // println!("{:?}", scale);
 
     // Prompt student for final grade & check with grade scale
-    let input = 85u8;
+    let input = 84u8;
 
     let g = scale.get_grade(&input);
 
@@ -140,7 +140,7 @@ struct GradeWeights {
 }
 
 pub mod gpa {
-    use std::ops::Range;
+    use std::ops::{Range, RangeInclusive};
 
     use csv::{Reader, ReaderBuilder, Trim};
     use serde::{Deserialize, Serialize};
@@ -150,7 +150,7 @@ pub mod gpa {
         letter: String,
         grade_point: f64,
         // conversion: Range<(u8, u8)>,
-        conversion: Range<u8>,
+        conversion: RangeInclusive<u8>,
     }
 
     impl Grade {
