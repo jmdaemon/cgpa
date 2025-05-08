@@ -1,24 +1,30 @@
-use std::{error::Error, io::{self, Write}};
+use std::{error::Error, fmt::Debug, io::{self, Write}};
 
-use csv::{ReaderBuilder, Trim};
-use gpa::{create_csv_reader, read_gpa_scale, GradePoint, GradePointAverageScale};
-use serde::{de::{self, Visitor}, Deserialize, Deserializer};
+use csv::{Reader, ReaderBuilder, Trim};
+use gpa::{read_gpa_scale, GradePoint, GradePointAverageScale};
+use serde::{de::{self, DeserializeOwned, Visitor}, Deserialize, Deserializer};
 
 fn main() -> Result<(), Box<dyn Error>> {
+
+    // TODO:
+    // Core:
+    // - Updated prompts:
+    // - File IO
+    // - Simple CLI
+    // Extra:
+    // - Simple Calculator?
+    // - Switch to pre/post weights (0-100% scale vs 10% or 20% etc)
+    // - Prediction mode
+    // - Experimental mode to calculate grade from assignment basis to final cumulative
+    // grade
+    // - C shared library bindings 
     
     // Read the specific gpa scaling
-    // Letter, Grade Point, Conversion
     let lines = gpa_scale().join("\n");
-
-    let mut rdr = create_csv_reader(lines.as_bytes());
-    for result in rdr.deserialize() {
-        let record: GradePoint = result?;
-        println!("{:?}", record);
-    }
-
-    let mut rdr = create_csv_reader(lines.as_bytes());
+    let rdr = create_csv_reader(lines.as_bytes());
+    show_lines::<GradePoint>(rdr)?;
+    let rdr = create_csv_reader(lines.as_bytes());
     let scale = read_gpa_scale(rdr);
-    // println!("{:?}", scale);
 
     // Prompt student for final grade & check with grade scale
     let input = 84u8;
@@ -31,45 +37,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Grading was unsuccessful");
     }
 
-    // Check scale
-
-    // Parse the course grading
-    let lines = vec!(
-        "3 Quizzes   , 10%",
-        "2 Projects  , 20%",
-        "5 Labs      , 20%",
-        "Midterm Exam, 20%",
-        "Final Exam  , 30%",
-    );
-
-    let lines = lines.join("\n");
+    // Read the specific course grading 
+    let lines = course_scale().join("\n");
     println!("{}", lines);
 
-    let mut rdr = 
-        ReaderBuilder::new()
-            .has_headers(false)
-            .trim(Trim::All)
-            .from_reader(lines.as_bytes());
-
+    let mut rdr = create_csv_reader(lines.as_bytes());
     for result in rdr.deserialize() {
-        let record: Grading = result?;
+        let record: CourseGrading = result?;
         println!("{:?}", record);
         println!("{:?}", record.percent.to_weight());
     }
 
-    let mut rdr = 
-        ReaderBuilder::new()
-            .has_headers(false)
-            .trim(Trim::All)
-            .from_reader(lines.as_bytes());
-    let weights = rdr.deserialize()
-        .into_iter()
-        .flat_map(Result::ok)
-        .collect();
-    let weights = GradeWeights { weights };
+    let rdr = create_csv_reader(lines.as_bytes());
+    let weights = read_course_weights(rdr);
 
     println!("{:?}", weights);
-    // Obtain the cumulative grading for a student 
+
+    // Calculate the cumulative weighted gpa grading of the student 
     let mut grades = vec!();
     for weight in &weights.weights {
         // Get a line, parse the value into a number
@@ -120,7 +104,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 // Fixtures
+// TODO: Use io::Cursor
 fn gpa_scale() -> Vec<String> {
+    // Letter, Grade Point, Conversion
     vec!(
         "A+, 4.33, 90,100",
         "A , 4.00, 85,89",
@@ -134,6 +120,27 @@ fn gpa_scale() -> Vec<String> {
         "D , 1.00, 50,55",
         "F , 0.00,  0,49",
     ).into_iter().map(String::from).collect::<Vec<String>>()
+}
+
+fn course_scale() -> Vec<String> {
+    vec!(
+        "3 Quizzes   , 10%",
+        "2 Projects  , 20%",
+        "5 Labs      , 20%",
+        "Midterm Exam, 20%",
+        "Final Exam  , 30%",
+    ).into_iter().map(String::from).collect::<Vec<String>>()
+}
+
+fn show_lines<T>(mut rdr: Reader<&[u8]>) -> Result<(), Box<dyn Error>>
+    where
+        T: Debug + DeserializeOwned
+{
+    for result in rdr.deserialize() {
+        let record: T = result?;
+        println!("{:?}", record);
+    }
+    Ok(())
 }
 
 struct User;
@@ -158,6 +165,15 @@ impl User {
         // input.to_string().trim().to_string()
 
     }
+}
+
+pub type CSVReader<'a> = Reader<&'a [u8]>;
+
+pub fn create_csv_reader(content: &[u8]) -> CSVReader {
+    ReaderBuilder::new()
+        .has_headers(false)
+        .trim(Trim::All)
+        .from_reader(content)
 }
 
 // To calculate a gpa we have a list of 
@@ -203,14 +219,25 @@ impl<'de> Deserialize<'de> for Percent {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct Grading {
+struct CourseGrading {
     title: String,
     percent: Percent,
 }
 
 #[derive(Debug, Clone)]
-struct GradeWeights {
-    weights: Vec<Grading>,
+pub struct CourseGradeWeights {
+    weights: Vec<CourseGrading>,
+}
+
+pub fn read_course_weights(mut rdr: CSVReader) -> CourseGradeWeights {
+    let weights = rdr.deserialize()
+        .into_iter()
+        .flat_map(Result::ok)
+        .collect();
+    CourseGradeWeights { weights }
+}
+
+pub mod grade {
 }
 
 pub mod gpa {
@@ -218,6 +245,8 @@ pub mod gpa {
 
     use csv::{Reader, ReaderBuilder, Trim};
     use serde::{Deserialize, Serialize};
+
+    use crate::CSVReader;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct GradePoint {
@@ -250,16 +279,7 @@ pub mod gpa {
         }
     }
 
-    pub type GPAScaleReader<'a> = Reader<&'a [u8]>;
-
-    pub fn create_csv_reader(content: &[u8]) -> GPAScaleReader {
-        ReaderBuilder::new()
-            .has_headers(false)
-            .trim(Trim::All)
-            .from_reader(content)
-    }
-
-    pub fn read_gpa_scale(mut rdr: GPAScaleReader) -> GradePointAverageScale {
+    pub fn read_gpa_scale(mut rdr: CSVReader) -> GradePointAverageScale {
         let scale = rdr.deserialize()
             .into_iter()
             .flat_map(Result::ok)
