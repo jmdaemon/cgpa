@@ -5,16 +5,24 @@ use cgpa::course::{read_course_weights, CourseGrading};
 use cgpa::fmt;
 use cgpa::gpa::{read_gpa_scale, GradePoint};
 use cgpa::tui::{Prompt, TUI};
+use clap::Parser;
+use cli::{GradeType, CLI};
 use csv::Reader;
 use serde::de::DeserializeOwned;
 
-// cli
-// -g : GPA Scale
-// -c : Course Scale
-// -b : Before / pre weight
-// -a : After  / post weight
-// [arg] : Optional Student Grades
 fn main() -> Result<(), Box<dyn Error>> {
+    let cli = CLI::parse();
+
+    // Set a default weight type
+    match cli.app_opts.weight_type {
+        GradeType { before: _, after: true, } => {
+            println!("Set post weight to after");
+        }
+        GradeType { before: true, after: _, } | _ => {
+            println!("Set post weight to before");
+        }
+    }
+
     // TODO:
     // Core:
     // - Updated prompts:
@@ -172,9 +180,70 @@ where
     Ok(())
 }
 
+#[derive(Debug)]
 enum GradeWeightType {
     Pre,
     Post,
 }
 
-struct Settings {}
+pub mod cli {
+    // struct Settings {}
+
+    use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
+
+    #[derive(Debug, Args)]
+    pub struct GlobalOpts {
+        /// Toggle to display detailed app runtime logging info
+        #[arg(help = "Toggle verbose information")]
+        #[arg(short, long, default_value_t = false)]
+        pub verbose: bool,
+
+        /// Silence all app errors & warnings
+        #[arg(help = "Disable app warnings")]
+        #[arg(short, long, default_value_t = false)]
+        pub quiet: bool,
+    }
+
+    #[derive(Debug, Args)]
+    pub struct AppOpts {
+        /// Toggle to display detailed app runtime logging info
+        #[command(flatten)]
+        pub weight_type: GradeType,
+    }
+
+    // NOTE: clap-rs issue 2621
+    #[derive(Debug, Args)]
+    #[clap(group(
+        ArgGroup::new("grade_type")
+            .multiple(false)
+            .args(&["before", "after"]),
+            ))]
+    pub struct GradeType {
+        #[clap(short, long, default_value_t = true)]
+        pub before: bool,
+        #[clap(short, long)]
+        pub after: bool,
+    }
+    // pub enum GradeType {
+    //     #[clap(short)]
+    //     Before,
+    //     #[clap(short)]
+    //     After,
+    // }
+
+    // cli
+    // -g : GPA Scale
+    // -c : Course Scale
+    // -b : Before / pre weight
+    // -a : After  / post weight
+    // [arg] : Optional Student Grades
+    #[derive(Debug, Parser)]
+    #[command(about, author, version)]
+    pub struct CLI {
+        #[clap(flatten)]
+        pub global_opts: GlobalOpts,
+
+        #[clap(flatten)]
+        pub app_opts: AppOpts,
+    }
+}
