@@ -1,11 +1,12 @@
 use std::error::Error;
 use std::fmt::Debug;
-use std::io::{self, Write};
 
-use csv::{Reader, ReaderBuilder, Trim};
-use gpa::{read_gpa_scale, GradePoint, GradePointAverageScale};
-use serde::de::{self, DeserializeOwned};
-use serde::Deserialize;
+use cgpa::course::{read_course_weights, CourseGrading};
+use cgpa::fmt;
+use cgpa::gpa::{read_gpa_scale, GradePoint};
+use cgpa::tui::{Prompt, TUI};
+use csv::Reader;
+use serde::de::DeserializeOwned;
 
 // cli
 // -g : GPA Scale
@@ -75,9 +76,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Get a line, parse the value into a number
         // let prompt = format!("Enter grade for {}: ", weight.title);
         // let prompt = Prompt::fmt_prompt_post_weight(longest, &weight.title);
-        let prompt =
-            tui::Prompt::fmt_prompt_pre_weight(longest, &weight.title, weight.percent.value);
-        let input = tui::TUI::prompt(&prompt);
+        let prompt = Prompt::fmt_prompt_pre_weight(longest, &weight.title, weight.percent.value);
+        let input = TUI::prompt(&prompt);
 
         let grade = input.parse::<u8>()?;
         grades.push(grade);
@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Show the grade of the student
     let lines = gpa_scale().join("\n");
-    let mut rdr = fmt::create_csv_reader(lines.as_bytes());
+    let rdr = fmt::create_csv_reader(lines.as_bytes());
     let scale = read_gpa_scale(rdr);
 
     // let g = scale.get_grade(&input);
@@ -178,171 +178,3 @@ enum GradeWeightType {
 }
 
 struct Settings {}
-
-mod tui {
-    use std::io::{self, Write};
-
-    pub(crate) struct Prompt;
-
-    impl Prompt {
-        // fn fmt_prompt_pre_weight(width: usize, s: &str, min: u8, max: u8) -> String {
-        //     format!("Enter grade for: {:>0width$} [{:>2}-{:>2}%]: ", s, min, max,
-        // width = width)
-        pub(crate) fn fmt_prompt_pre_weight(width: usize, s: &str, value: u8) -> String {
-            format!(
-                "Enter grade for: {:>0width$} [0-{:>2}%]: ",
-                s,
-                value,
-                width = width
-            )
-        }
-
-        pub(crate) fn fmt_prompt_post_weight(width: usize, s: &str) -> String {
-            format!("Enter grade for: {:>0width$} [0-100%]: ", s, width = width)
-        }
-    }
-
-    pub(crate) struct TUI;
-
-    impl TUI {
-        pub(crate) fn prompt(prompt: &str) -> String {
-            print!("{prompt}");
-            Self::input()
-        }
-
-        pub(crate) fn input() -> String {
-            let input = &mut String::new();
-            io::stdout().flush();
-            io::stdin().read_line(input);
-            input.to_string().trim().to_string()
-
-            // let mut stdin = io::stdin();
-            // let input = &mut String::new();
-            // input.clear();
-            // io::stdout().flush();
-            // stdin.read_line(input);
-            // input.to_string().trim().to_string()
-        }
-    }
-}
-
-mod fmt {
-    use csv::{Reader, ReaderBuilder, Trim};
-    use serde::de::Visitor;
-    use serde::{de, Deserialize, Deserializer};
-
-    pub type CSVReader<'a> = Reader<&'a [u8]>;
-
-    pub fn create_csv_reader(content: &[u8]) -> CSVReader {
-        ReaderBuilder::new()
-            .has_headers(false)
-            .trim(Trim::All)
-            .from_reader(content)
-    }
-
-    #[derive(Debug, Clone)]
-    pub(crate) struct Percent {
-        pub(crate) percent: String,
-        pub(crate) value: u8,
-    }
-
-    impl Percent {
-        pub(crate) fn to_weight(&self) -> f64 {
-            self.value as f64 / 100.0
-        }
-    }
-
-    pub(crate) struct PercentVisitor;
-
-    impl<'de> Visitor<'de> for PercentVisitor {
-        type Value = Percent;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("a whole number percent between 0-100 (e.g 55%)")
-        }
-
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            let s = v.split("%").collect::<Vec<&str>>().join("").to_string();
-            let value = s.parse::<u8>().expect("Error: Unable to parse percent");
-            Ok(Percent {
-                percent: v.to_owned(),
-                value,
-            })
-        }
-    }
-
-    impl<'de> Deserialize<'de> for Percent {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            deserializer.deserialize_str(PercentVisitor)
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct CourseGrading {
-    title: String,
-    percent: fmt::Percent,
-}
-
-#[derive(Debug, Clone)]
-pub struct CourseGradeWeights {
-    weights: Vec<CourseGrading>,
-}
-
-pub fn read_course_weights(mut rdr: fmt::CSVReader) -> CourseGradeWeights {
-    let weights = rdr.deserialize().into_iter().flat_map(Result::ok).collect();
-    CourseGradeWeights { weights }
-}
-
-pub mod grade {}
-
-pub mod gpa {
-    use std::ops::{Range, RangeInclusive};
-
-    use csv::Reader;
-    use serde::{Deserialize, Serialize};
-
-    use crate::fmt::CSVReader;
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GradePoint {
-        letter: String,
-        grade_point: f64,
-        // conversion: Range<(u8, u8)>,
-        conversion: RangeInclusive<u8>,
-    }
-
-    impl GradePoint {
-        fn within(&self, value: &u8) -> bool {
-            self.conversion.contains(value)
-        }
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GradePointAverageScale {
-        scale: Vec<GradePoint>,
-    }
-    pub type GPAScale = GradePointAverageScale;
-
-    impl GradePointAverageScale {
-        pub fn calc_gpa(&self, value: &u8) -> Option<GradePoint> {
-            for grade in &self.scale {
-                if grade.within(value) {
-                    return Some(grade.clone());
-                }
-            }
-            return None;
-        }
-    }
-
-    pub fn read_gpa_scale(mut rdr: CSVReader) -> GradePointAverageScale {
-        let scale = rdr.deserialize().into_iter().flat_map(Result::ok).collect();
-        GradePointAverageScale { scale }
-    }
-}
