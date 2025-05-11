@@ -1,16 +1,13 @@
 use std::error::Error;
 use std::fmt::Debug;
-use std::process::exit;
 
-use cgpa::course::{read_course_weights, CourseGrading};
+use cgpa::course::read_course_weights;
 use cgpa::fmt;
-use cgpa::gpa::{read_gpa_scale, GPAScale, GradePoint};
+use cgpa::gpa::{read_gpa_scale, GPAScale};
 use cgpa::tui::{Prompt, TUI};
 use clap::Parser;
 use cli::{GradeType, CLI};
-use csv::Reader;
 use log::{debug, error, info, trace, warn};
-use serde::de::DeserializeOwned;
 use simple_logger::SimpleLogger;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -79,14 +76,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     }).collect::<Vec<String>>();
     prompts.iter().for_each(|p| trace!("{:?}", p));
 
-    let grades = prompts.into_iter()
+    let grades: Vec<_> = prompts.into_iter()
         .map(|p| TUI::prompt(&p))
         .map(|input| input.parse::<u8>())
+        .collect();
+
+    info!("Validating user input");
+    let grades = grades.into_iter()
+        .inspect(|res| warn!("{:?}", res))
         .flat_map(Result::ok)
         .collect::<Vec<u8>>();
 
     info!("Calculating student gpa");
-
     let cumulative: f64 = match weight_type {
         GradeWeightType::Pre => {
             grades
@@ -159,19 +160,10 @@ fn show_gpa(grade: &u8, scale: GPAScale) {
         println!("Grade: {}%", grade);
         println!("GPA  : {:?}", gpa);
     } else {
-        eprintln!("Error: Unable to calculate course gpa for student.");
+        let err = "Error: Unable to calculate course gpa for student.";
+        eprintln!("{}", err);
+        error!("{}", err);
     }
-}
-
-fn show_lines<T>(mut rdr: Reader<&[u8]>) -> Result<(), Box<dyn Error>>
-where
-    T: Debug + DeserializeOwned,
-{
-    for result in rdr.deserialize() {
-        let record: T = result?;
-        trace!("{:?}", record);
-    }
-    Ok(())
 }
 
 #[derive(Debug)]
@@ -185,7 +177,7 @@ pub mod cli {
 
     use std::path::PathBuf;
 
-    use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
+    use clap::{ArgGroup, Args, Parser};
 
     #[derive(Debug, Args)]
     pub struct GlobalOpts {
