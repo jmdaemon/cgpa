@@ -6,20 +6,20 @@ use std::path::Path;
 use cgpa::course::{read_course_weights, CourseScale};
 use cgpa::fmt;
 use cgpa::gpa::{read_gpa_scale, GPAScale};
-use cgpa::tui::{Prompt, TUI};
+use cgpa_bin::tui::{Prompt, TUI};
 use clap::Parser;
 use cli::{GradeType, CLI};
 use log::{debug, error, info, trace, warn};
 use simple_logger::SimpleLogger;
 
 // Extra:
-// - Simple Calculator?
-// - Switch to pre/post weights (0-100% scale vs 10% or 20% etc)
-// - Prediction mode
-// - Experimental mode to calculate grade from assignment basis to final
-//   cumulative
-// grade
-// - C shared library bindings?
+// - Simple cross-platform calculator for complete & self contained grade calcs
+// - A prediction mode that will calculate estimated final grade based on linear regression
+// - A mode to calculate the final grade starting from e.g:
+//   - a quiz -> all quizzes
+//   - a test -> all tests
+//   - all quizzes + tests -> final grade & gpa
+// - Exposing library as a c dynamic library?
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = CLI::parse();
 
