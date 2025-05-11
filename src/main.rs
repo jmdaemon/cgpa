@@ -51,12 +51,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     info!("Loading gpa grading scale...");
     let lines = fs::read_to_string(fp_gpa_scale)?;
     let rdr = fmt::create_csv_reader(lines.as_bytes());
-    let scale = read_gpa_scale(rdr);
-    scale.scale.iter().for_each(|gp| trace!("{:?}", gp));
+    let gpa_scale = read_gpa_scale(rdr);
+    gpa_scale.scale.iter().for_each(|gp| trace!("{:?}", gp));
     info!("GPA Scale Loaded!");
 
     // TEST: Prompt student for final grade & check with grade scale
-    show_gpa(&84u8, scale);
+    show_gpa(&84u8, &gpa_scale);
 
     info!("Loading course grading scale...");
     let lines = fs::read_to_string(fp_course_scale)?;
@@ -107,10 +107,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cumulative = cumulative.round() as u8;
 
     // Show the grade of the student
-    let lines = gpa_scale().join("\n");
-    let rdr = fmt::create_csv_reader(lines.as_bytes());
-    let scale = read_gpa_scale(rdr);
-    show_gpa(&cumulative, scale);
+    show_gpa(&cumulative, &gpa_scale);
 
     // Parse a student's grading and calculate the end gpa based on the weights
     // let data = "
@@ -122,43 +119,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// Fixtures
-// TODO: Use io::Cursor
-fn gpa_scale() -> Vec<String> {
-    // Letter, Grade Point, Conversion
-    vec![
-        "A+, 4.33, 90,100",
-        "A , 4.00, 85,89",
-        "A-, 3.67, 80,84",
-        "B+, 3.33, 76,79",
-        "B , 3.00, 72,75",
-        "B-, 2.67, 68,71",
-        "C+, 2.33, 64,67",
-        "C , 2.00, 60,63",
-        "C-, 1.67, 56,59",
-        "D , 1.00, 50,55",
-        "F , 0.00,  0,49",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect::<Vec<String>>()
-}
-
-fn course_scale() -> Vec<String> {
-    vec![
-        "3 Quizzes   , 10%",
-        "2 Projects  , 20%",
-        "5 Labs      , 20%",
-        "Midterm Exam, 20%",
-        "Final Exam  , 30%",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect::<Vec<String>>()
-}
-
 /// Show a student's gpa for a course
-fn show_gpa(grade: &u8, scale: GPAScale) {
+fn show_gpa(grade: &u8, scale: &GPAScale) {
     if let Some(gpa) = scale.calc_gpa(grade) {
         println!("Grade: {}%", grade);
         println!("GPA  : {:?}", gpa);
@@ -250,6 +212,41 @@ pub mod cli {
 mod tests {
     use cgpa::*;
     use super::*;
+
+    // Fixtures
+    // TODO: Use io::Cursor
+    fn gpa_scale() -> Vec<String> {
+        // Letter, Grade Point, Conversion
+        vec![
+            "A+, 4.33, 90,100",
+            "A , 4.00, 85,89",
+            "A-, 3.67, 80,84",
+            "B+, 3.33, 76,79",
+            "B , 3.00, 72,75",
+            "B-, 2.67, 68,71",
+            "C+, 2.33, 64,67",
+            "C , 2.00, 60,63",
+            "C-, 1.67, 56,59",
+            "D , 1.00, 50,55",
+            "F , 0.00,  0,49",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<String>>()
+    }
+
+    fn course_scale() -> Vec<String> {
+        vec![
+            "3 Quizzes   , 10%",
+            "2 Projects  , 20%",
+            "5 Labs      , 20%",
+            "Midterm Exam, 20%",
+            "Final Exam  , 30%",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<String>>()
+    }
 
     #[test]
     fn test_gpa_scale() {
