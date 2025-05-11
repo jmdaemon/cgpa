@@ -1,10 +1,11 @@
 use std::ops::RangeInclusive;
 
+use derive_new::new;
 use serde::{Deserialize, Serialize};
 
 use crate::fmt::CSVReader;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, new)]
 pub struct GradePoint {
     letter: String,
     grade_point: f64,

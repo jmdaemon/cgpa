@@ -11,7 +11,7 @@ pub fn create_csv_reader(content: &[u8]) -> CSVReader {
         .from_reader(content)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Percent {
     pub percent: String,
     pub value: u8,

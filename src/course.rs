@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use crate::fmt;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct CourseGrading {
     pub title: String,
     pub percent: fmt::Percent,

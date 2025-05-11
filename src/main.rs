@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt::Debug;
+use std::fs;
 
 use cgpa::course::read_course_weights;
 use cgpa::fmt;
@@ -30,14 +31,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             info!("[CLI] Set opt weight_type: post");
             GradeWeightType::Post
         }
-        
     };
+
+    let fp_gpa_scale = cli.app_opts.gpa_scale;
+    let fp_course_scale = cli.app_opts.course_scale;
 
     // TODO:
     // Core:
     // - Updated prompts:
-    // - File IO
-    // - Simple CLI
     // Extra:
     // - Simple Calculator?
     // - Switch to pre/post weights (0-100% scale vs 10% or 20% etc)
@@ -47,21 +48,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     // grade
     // - C shared library bindings
 
-    info!("Loaded the gpa grading scale");
-    let lines = gpa_scale().join("\n");
+    info!("Loading gpa grading scale...");
+    let lines = fs::read_to_string(fp_gpa_scale)?;
     let rdr = fmt::create_csv_reader(lines.as_bytes());
     let scale = read_gpa_scale(rdr);
     scale.scale.iter().for_each(|gp| trace!("{:?}", gp));
+    info!("GPA Scale Loaded!");
 
     // TEST: Prompt student for final grade & check with grade scale
     show_gpa(&84u8, scale);
 
-    info!("Loaded the course grading scale");
-    let lines = course_scale().join("\n");
+    info!("Loading course grading scale...");
+    let lines = fs::read_to_string(fp_course_scale)?;
     let rdr = fmt::create_csv_reader(lines.as_bytes());
     let weights = read_course_weights(rdr);
     weights.weights.iter().for_each(|cg| trace!("{:?}", cg));
     weights.weights.iter().for_each(|cg| trace!("{:?}", cg.percent.to_weight()));
+    info!("Course Scale Loaded!");
 
     // Calculate the cumulative weighted gpa grading of the student
     info!("Preparing user prompts...");
@@ -239,5 +242,43 @@ pub mod cli {
 
         #[clap(flatten)]
         pub app_opts: AppOpts,
+    }
+}
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod tests {
+    use cgpa::*;
+    use super::*;
+
+    #[test]
+    fn test_gpa_scale() {
+        let a_plus = gpa::GradePoint::new("A+".to_string(), 4.33, 90..=100);
+
+        info!("Loaded the gpa grading scale");
+        let lines = gpa_scale().join("\n");
+        let rdr = fmt::create_csv_reader(lines.as_bytes());
+        let scale = read_gpa_scale(rdr);
+        scale.scale.iter().for_each(|gp| trace!("{:?}", gp));
+
+        assert_eq!(scale.scale.get(0), Some(&a_plus));
+    }
+
+    #[test]
+    fn test_course_scale() {
+        let quizzes = course::CourseGrading {
+            title: "3 Quizzes".to_string(),
+            percent: fmt::Percent { percent: "10%".to_string(), value: 10 },
+        };
+
+        info!("Loading course grading scale...");
+        let lines = course_scale().join("\n");
+        let rdr = fmt::create_csv_reader(lines.as_bytes());
+        let weights = read_course_weights(rdr);
+        weights.weights.iter().for_each(|cg| trace!("{:?}", cg));
+        weights.weights.iter().for_each(|cg| trace!("{:?}", cg.percent.to_weight()));
+        info!("Course Scale Loaded!");
+
+        assert_eq!(weights.weights.get(0), Some(&quizzes));
     }
 }
