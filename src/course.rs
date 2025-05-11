@@ -12,6 +12,7 @@ pub struct CourseGrading {
 pub struct CourseGradeWeights {
     pub weights: Vec<CourseGrading>,
 }
+pub type CourseScale = CourseGradeWeights;
 
 pub fn read_course_weights(mut rdr: fmt::CSVReader) -> CourseGradeWeights {
     let weights = rdr.deserialize().into_iter().flat_map(Result::ok).collect();

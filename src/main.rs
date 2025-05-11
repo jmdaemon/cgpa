@@ -1,8 +1,9 @@
 use std::error::Error;
 use std::fmt::Debug;
 use std::fs;
+use std::path::Path;
 
-use cgpa::course::read_course_weights;
+use cgpa::course::{read_course_weights, CourseScale};
 use cgpa::fmt;
 use cgpa::gpa::{read_gpa_scale, GPAScale};
 use cgpa::tui::{Prompt, TUI};
@@ -11,6 +12,17 @@ use cli::{GradeType, CLI};
 use log::{debug, error, info, trace, warn};
 use simple_logger::SimpleLogger;
 
+// TODO:
+// Core:
+// - Updated prompts:
+// Extra:
+// - Simple Calculator?
+// - Switch to pre/post weights (0-100% scale vs 10% or 20% etc)
+// - Prediction mode
+// - Experimental mode to calculate grade from assignment basis to final
+//   cumulative
+// grade
+// - C shared library bindings
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = CLI::parse();
 
@@ -32,53 +44,43 @@ fn main() -> Result<(), Box<dyn Error>> {
             GradeWeightType::Post
         }
     };
-
     let fp_gpa_scale = cli.app_opts.gpa_scale;
     let fp_course_scale = cli.app_opts.course_scale;
 
-    // TODO:
-    // Core:
-    // - Updated prompts:
-    // Extra:
-    // - Simple Calculator?
-    // - Switch to pre/post weights (0-100% scale vs 10% or 20% etc)
-    // - Prediction mode
-    // - Experimental mode to calculate grade from assignment basis to final
-    //   cumulative
-    // grade
-    // - C shared library bindings
-
-    info!("Loading gpa grading scale...");
-    let lines = fs::read_to_string(fp_gpa_scale)?;
-    let rdr = fmt::create_csv_reader(lines.as_bytes());
-    let gpa_scale = read_gpa_scale(rdr);
-    gpa_scale.scale.iter().for_each(|gp| trace!("{:?}", gp));
-    info!("GPA Scale Loaded!");
-
-    // TEST: Prompt student for final grade & check with grade scale
-    show_gpa(&84u8, &gpa_scale);
-
-    info!("Loading course grading scale...");
-    let lines = fs::read_to_string(fp_course_scale)?;
-    let rdr = fmt::create_csv_reader(lines.as_bytes());
-    let weights = read_course_weights(rdr);
-    weights.weights.iter().for_each(|cg| trace!("{:?}", cg));
-    weights.weights.iter().for_each(|cg| trace!("{:?}", cg.percent.to_weight()));
-    info!("Course Scale Loaded!");
+    let gpa_scale = load_gpa_scale(&fp_gpa_scale)?;
+    let course_scale = load_course_scale(&fp_course_scale)?;
 
     // Calculate the cumulative weighted gpa grading of the student
-    info!("Preparing user prompts...");
-    let longest_title = weights.weights.iter().map(|cg| cg.title.len()).max().unwrap_or(0);
+    let prompts = prep_user_prompts(&weight_type, &course_scale);
+    let grades = get_user_grades(prompts);
+    let cumulative = calc_user_grade(weight_type, &course_scale, grades);
 
-    let prompts = &weights.weights.iter()
-        .map(|cg| {
-            match weight_type {
-                GradeWeightType::Pre => Prompt::fmt_prompt_pre_weight(longest_title, &cg.title),
-                GradeWeightType::Post => Prompt::fmt_prompt_post_weight(longest_title, &cg.title, cg.percent.value),
+    // Show the grade of the student
+    show_gpa(&cumulative, &gpa_scale);
+
+    Ok(())
+}
+
+fn calc_user_grade(weight_type: GradeWeightType, course_scale: &CourseScale, grades: Vec<u8>) -> u8 {
+    info!("Calculating student gpa");
+    let cumulative: f64 = match weight_type {
+        GradeWeightType::Pre => {
+            grades
+                .into_iter()
+                .zip(&course_scale.weights)
+                .map(|(grade , grading)|
+                grade as f64 * grading.percent.to_weight())
+                .sum()
         }
-    }).collect::<Vec<String>>();
-    prompts.iter().for_each(|p| trace!("{:?}", p));
+        GradeWeightType::Post => grades.into_iter().map(|grade| grade as f64).sum(),
+    };
+    debug!("Cumulative GPA: {}", cumulative);
 
+    let cumulative = cumulative.round() as u8;
+    cumulative
+}
+
+fn get_user_grades(prompts: Vec<String>) -> Vec<u8> {
     let grades: Vec<_> = prompts.into_iter()
         .map(|p| TUI::prompt(&p))
         .map(|input| input.parse::<u8>())
@@ -89,35 +91,49 @@ fn main() -> Result<(), Box<dyn Error>> {
         .inspect(|res| warn!("{:?}", res))
         .flat_map(Result::ok)
         .collect::<Vec<u8>>();
-
-    info!("Calculating student gpa");
-    let cumulative: f64 = match weight_type {
-        GradeWeightType::Pre => {
-            grades
-                .into_iter()
-                .zip(&weights.weights)
-                .map(|(grade , grading)|
-                grade as f64 * grading.percent.to_weight())
-                .sum()
-        }
-        GradeWeightType::Post => grades.into_iter().map(|grade| grade as f64).sum(),
-    };
-    debug!("Cumulative GPA: {}", cumulative);
-
-    let cumulative = cumulative.round() as u8;
-
-    // Show the grade of the student
-    show_gpa(&cumulative, &gpa_scale);
-
-    // Parse a student's grading and calculate the end gpa based on the weights
-    // let data = "
-    // ";
-    // TODO: Provide future projections
-
-    // println!("Hello, world!");
-
-    Ok(())
+    grades
 }
+
+fn prep_user_prompts(weight_type: &GradeWeightType, course_scale: &CourseScale) -> Vec<String> {
+    info!("Preparing user prompts...");
+    let longest_title = course_scale.weights.iter().map(|cg| cg.title.len()).max().unwrap_or(0);
+
+    let prompts = &course_scale.weights.iter()
+        .map(|cg| {
+            match *weight_type {
+                GradeWeightType::Pre => Prompt::fmt_prompt_pre_weight(longest_title, &cg.title),
+                GradeWeightType::Post => Prompt::fmt_prompt_post_weight(longest_title, &cg.title, cg.percent.value),
+        }
+    }).collect::<Vec<String>>();
+    prompts.iter().for_each(|p| trace!("{:?}", p));
+    prompts.to_owned()
+}
+
+fn load_course_scale(fp_course_scale: &Path) -> Result<CourseScale, Box<dyn Error>> {
+    info!("Loading course grading scale...");
+    let lines = fs::read_to_string(fp_course_scale)?;
+    let rdr = fmt::create_csv_reader(lines.as_bytes());
+    let course_scale = read_course_weights(rdr);
+    course_scale.weights.iter().for_each(|cg| trace!("{:?}", cg));
+    course_scale.weights.iter().for_each(|cg| trace!("{:?}", cg.percent.to_weight()));
+    info!("Course Scale Loaded!");
+    Ok(course_scale)
+}
+
+fn load_gpa_scale(fp_gpa_scale: &Path) -> Result<GPAScale, Box<dyn Error>> {
+    info!("Loading gpa grading scale...");
+    let lines = fs::read_to_string(fp_gpa_scale)?;
+    let rdr = fmt::create_csv_reader(lines.as_bytes());
+    let gpa_scale = read_gpa_scale(rdr);
+    gpa_scale.scale.iter().for_each(|gp| trace!("{:?}", gp));
+    info!("GPA Scale Loaded!");
+    Ok(gpa_scale)
+}
+
+// Load gpa scale
+// Load course scale
+// Prompt user grades
+// Calc user grade & gpa
 
 /// Show a student's gpa for a course
 fn show_gpa(grade: &u8, scale: &GPAScale) {
@@ -138,8 +154,6 @@ enum GradeWeightType {
 }
 
 pub mod cli {
-    // struct Settings {}
-
     use std::path::PathBuf;
 
     use clap::{ArgGroup, Args, Parser};
@@ -251,6 +265,7 @@ mod tests {
     #[test]
     fn test_gpa_scale() {
         let a_plus = gpa::GradePoint::new("A+".to_string(), 4.33, 90..=100);
+        let a = gpa::GradePoint::new("A".to_string(), 4.00, 85..=89);
 
         info!("Loaded the gpa grading scale");
         let lines = gpa_scale().join("\n");
@@ -259,6 +274,11 @@ mod tests {
         scale.scale.iter().for_each(|gp| trace!("{:?}", gp));
 
         assert_eq!(scale.scale.get(0), Some(&a_plus));
+
+        // Check that the bounds are correct for the grading scales
+        assert_eq!(scale.calc_gpa(&90), Some(a_plus.clone()));
+        assert_eq!(scale.calc_gpa(&100), Some(a_plus.clone()));
+        assert_eq!(scale.calc_gpa(&89), Some(a));
     }
 
     #[test]
