@@ -12,6 +12,10 @@ use cli::{GradeType, CLI};
 use log::{debug, error, info, trace, warn};
 use simple_logger::SimpleLogger;
 
+// TODO:
+// Core:
+// - Manage directories using dirs, and allow users to shorten
+// file paths using folder structure in dirs
 // Extra:
 // - Simple cross-platform calculator for complete & self contained grade calcs
 // - A prediction mode that will calculate estimated final grade based on linear regression
@@ -25,9 +29,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Enable app debug info
     if cli.global_opts.debug {
-        SimpleLogger::new()
-            // .with_level(log::LevelFilter::Debug)
-            .init().unwrap();
+        // Show minimal debug info for users, but toggle advanced info for devs
+        if cfg!(debug_assertions) {
+            SimpleLogger::new().init().unwrap();
+        } else {
+            SimpleLogger::new()
+                .with_level(log::LevelFilter::Debug)
+                .init().unwrap();
+        }
     }
 
     // Set a default weight type
