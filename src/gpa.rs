@@ -20,7 +20,7 @@ impl GradePoint {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GradePointAverageScale {
-    scale: Vec<GradePoint>,
+    pub scale: Vec<GradePoint>,
 }
 pub type GPAScale = GradePointAverageScale;
 

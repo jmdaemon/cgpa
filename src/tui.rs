@@ -6,7 +6,7 @@ impl Prompt {
     // fn fmt_prompt_pre_weight(width: usize, s: &str, min: u8, max: u8) -> String {
     //     format!("Enter grade for: {:>0width$} [{:>2}-{:>2}%]: ", s, min, max,
     // width = width)
-    pub fn fmt_prompt_pre_weight(width: usize, s: &str, value: u8) -> String {
+    pub fn fmt_prompt_post_weight(width: usize, s: &str, value: u8) -> String {
         format!(
             "Enter grade for: {:>0width$} [0-{:>2}%]: ",
             s,
@@ -15,7 +15,7 @@ impl Prompt {
         )
     }
 
-    pub fn fmt_prompt_post_weight(width: usize, s: &str) -> String {
+    pub fn fmt_prompt_pre_weight(width: usize, s: &str) -> String {
         format!("Enter grade for: {:>0width$} [0-100%]: ", s, width = width)
     }
 }

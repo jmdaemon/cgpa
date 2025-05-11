@@ -3,7 +3,11 @@ name = "cgpa"
 version = "0.1.0"
 edition = "2021"
 
+# TODO: Isolate library and binary into separate workspaces
+# with separate dependencies
 [dependencies]
 clap = { version = "4.5.37", features = ["derive"] }
 csv = "1.3.1"
+log = "0.4.27"
 serde = { version = "1.0.219", features = ["derive"] }
+simple_logger = "5.0.0"
