@@ -9,7 +9,6 @@ use crate::fmt::CSVReader;
 pub struct GradePoint {
     letter: String,
     grade_point: f64,
-    // conversion: Range<(u8, u8)>,
     conversion: RangeInclusive<u8>,
 }
 

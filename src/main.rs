@@ -12,9 +12,6 @@ use cli::{GradeType, CLI};
 use log::{debug, error, info, trace, warn};
 use simple_logger::SimpleLogger;
 
-// TODO:
-// Core:
-// - Updated prompts:
 // Extra:
 // - Simple Calculator?
 // - Switch to pre/post weights (0-100% scale vs 10% or 20% etc)
@@ -81,6 +78,8 @@ fn calc_user_grade(weight_type: GradeWeightType, course_scale: &CourseScale, gra
 }
 
 fn get_user_grades(prompts: Vec<String>) -> Vec<u8> {
+    println!("Please enter the grades for: ");
+
     let grades: Vec<_> = prompts.into_iter()
         .map(|p| TUI::prompt(&p))
         .map(|input| input.parse::<u8>())
