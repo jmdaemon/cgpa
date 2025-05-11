@@ -181,8 +181,7 @@ pub mod cli {
 
     #[derive(Debug, Args)]
     pub struct GlobalOpts {
-        /// Toggle to display detailed app runtime logging info
-        #[arg(help = "Toggle verbose information")]
+        /// Toggle verbose app information
         #[arg(short, long, default_value_t = false)]
         pub debug: bool,
 
@@ -194,17 +193,20 @@ pub mod cli {
 
     #[derive(Debug, Args)]
     pub struct AppOpts {
-        /// Toggle to display detailed app runtime logging info
+        /// Set grading weight type
         #[command(flatten)]
         pub weight_type: GradeType,
 
         /// Set gpa grading scale from input file
-        #[arg(short, long)]
+        #[arg(short, long, aliases = ["gpa"])]
         pub gpa_scale: PathBuf,
 
         /// Set course grading scale from input file
-        #[arg(short, long)]
+        #[arg(short, long, aliases = ["course"])]
         pub course_scale: PathBuf,
+
+        /// Set student grades from input file
+        pub grades: Option<PathBuf>,
     }
 
     // NOTE: clap-rs issue 2621
@@ -222,13 +224,6 @@ pub mod cli {
         #[clap(short, long)]
         pub after: bool,
     }
-
-    // pub enum GradeType {
-    //     #[clap(short)]
-    //     Before,
-    //     #[clap(short)]
-    //     After,
-    // }
 
     // cli
     // -g : GPA Scale
