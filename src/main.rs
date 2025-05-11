@@ -19,7 +19,7 @@ use simple_logger::SimpleLogger;
 // - Experimental mode to calculate grade from assignment basis to final
 //   cumulative
 // grade
-// - C shared library bindings
+// - C shared library bindings?
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = CLI::parse();
 
@@ -129,11 +129,6 @@ fn load_gpa_scale(fp_gpa_scale: &Path) -> Result<GPAScale, Box<dyn Error>> {
     Ok(gpa_scale)
 }
 
-// Load gpa scale
-// Load course scale
-// Prompt user grades
-// Calc user grade & gpa
-
 /// Show a student's gpa for a course
 fn show_gpa(grade: &u8, scale: &GPAScale) {
     if let Some(gpa) = scale.calc_gpa(grade) {
@@ -227,7 +222,6 @@ mod tests {
     use super::*;
 
     // Fixtures
-    // TODO: Use io::Cursor
     fn gpa_scale() -> Vec<String> {
         // Letter, Grade Point, Conversion
         vec![
