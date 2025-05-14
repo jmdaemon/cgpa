@@ -1,8 +1,8 @@
-use std::error::Error;
 use std::fmt::Debug;
 use std::fs;
 use std::path::Path;
 
+use anyhow::Result;
 use cgpa::course::{read_course_weights, CourseScale};
 use cgpa::fmt;
 use cgpa::gpa::{read_gpa_scale, GPAScale};
@@ -10,7 +10,12 @@ use cgpa_bin::tui::{Prompt, TUI};
 use clap::Parser;
 use cli::{GradeType, CLI};
 use log::{debug, error, info, trace, warn};
+use paths::AppPaths;
 use simple_logger::SimpleLogger;
+use shadow_rs::shadow;
+
+// Enable build metadata
+shadow!(build);
 
 // TODO:
 // Core:
@@ -24,7 +29,7 @@ use simple_logger::SimpleLogger;
 //   - a test -> all tests
 //   - all quizzes + tests -> final grade & gpa
 // - Exposing library as a c dynamic library?
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let cli = CLI::parse();
 
     // Enable app debug info
@@ -50,8 +55,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             GradeWeightType::Post
         }
     };
-    let fp_gpa_scale = cli.app_opts.gpa_scale;
-    let fp_course_scale = cli.app_opts.course_scale;
+    let fp_gpa_scale = AppPaths::load_path(cli.app_opts.gpa_scale);
+    let fp_course_scale = AppPaths::load_path(cli.app_opts.course_scale);
+    info!("[CLI] Set gpa_scale    : {}", &fp_gpa_scale.display());
+    info!("[CLI] Set course_scale : {}", &fp_course_scale.display());
 
     let gpa_scale = load_gpa_scale(&fp_gpa_scale)?;
     let course_scale = load_course_scale(&fp_course_scale)?;
@@ -117,7 +124,7 @@ fn prep_user_prompts(weight_type: &GradeWeightType, course_scale: &CourseScale) 
     prompts.to_owned()
 }
 
-fn load_course_scale(fp_course_scale: &Path) -> Result<CourseScale, Box<dyn Error>> {
+fn load_course_scale(fp_course_scale: &Path) -> Result<CourseScale> {
     info!("Loading course grading scale...");
     let lines = fs::read_to_string(fp_course_scale)?;
     let rdr = fmt::create_csv_reader(lines.as_bytes());
@@ -128,7 +135,7 @@ fn load_course_scale(fp_course_scale: &Path) -> Result<CourseScale, Box<dyn Erro
     Ok(course_scale)
 }
 
-fn load_gpa_scale(fp_gpa_scale: &Path) -> Result<GPAScale, Box<dyn Error>> {
+fn load_gpa_scale(fp_gpa_scale: &Path) -> Result<GPAScale> {
     info!("Loading gpa grading scale...");
     let lines = fs::read_to_string(fp_gpa_scale)?;
     let rdr = fmt::create_csv_reader(lines.as_bytes());
@@ -154,6 +161,56 @@ fn show_gpa(grade: &u8, scale: &GPAScale) {
 enum GradeWeightType {
     Pre,
     Post,
+}
+
+#[allow(dead_code)]
+pub mod paths {
+    use std::{fs, io, path::{Path, PathBuf}};
+    use anyhow::Result;
+
+    const QUALIFIER: &str           = "com";
+    const ORGANIZATION: &str        = "jmdaemon";
+    const APPLICATION: &str         = "cgpa";
+
+    struct OrgPaths;
+
+    impl OrgPaths {
+        fn org_dir() -> PathBuf {
+            dirs::config_dir()
+            .expect("No config directory available")
+            .join(ORGANIZATION)
+        }
+
+        fn app_dir() -> PathBuf {
+            Self::org_dir().join(APPLICATION)
+        }
+    }
+    fn load_paths(path: &Path) -> Result<(), io::Error> {
+        fs::create_dir_all(path)
+    }
+
+    pub struct AppPaths;
+
+    impl AppPaths {
+        pub fn data_path() -> PathBuf {
+            OrgPaths::app_dir().join("data")
+        }
+
+        pub fn load_data_path() {
+            load_paths(&Self::data_path())
+                .expect("Error: Could not create path");
+        }
+
+        /// Load paths from the app data directory
+        pub fn load_path(fp: PathBuf) -> PathBuf {
+            if fp.exists() {
+                fp
+            } else {
+                Self::load_data_path();
+                Self::data_path().join(fp.file_name().expect("Error: Input must be a file."))
+            }
+        }
+    }
 }
 
 pub mod cli {
