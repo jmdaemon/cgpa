@@ -10,7 +10,7 @@ use cgpa_bin::tui::{Prompt, TUI};
 use clap::Parser;
 use cli::{GradeType, CLI};
 use log::{debug, error, info, trace, warn};
-use paths::AppPaths;
+use paths::AppData;
 use simple_logger::SimpleLogger;
 use shadow_rs::shadow;
 
@@ -55,8 +55,8 @@ fn main() -> Result<()> {
             GradeWeightType::Post
         }
     };
-    let fp_gpa_scale = AppPaths::load_path(cli.app_opts.gpa_scale);
-    let fp_course_scale = AppPaths::load_path(cli.app_opts.course_scale);
+    let fp_gpa_scale = AppData::load_path(cli.app_opts.gpa_scale);
+    let fp_course_scale = AppData::load_path(cli.app_opts.course_scale);
     info!("[CLI] Set gpa_scale    : {}", &fp_gpa_scale.display());
     info!("[CLI] Set course_scale : {}", &fp_course_scale.display());
 
@@ -172,9 +172,9 @@ pub mod paths {
     const ORGANIZATION: &str        = "jmdaemon";
     const APPLICATION: &str         = "cgpa";
 
-    struct OrgPaths;
+    struct AppPaths;
 
-    impl OrgPaths {
+    impl AppPaths {
         fn org_dir() -> PathBuf {
             dirs::config_dir()
             .expect("No config directory available")
@@ -189,11 +189,11 @@ pub mod paths {
         fs::create_dir_all(path)
     }
 
-    pub struct AppPaths;
+    pub struct AppData;
 
-    impl AppPaths {
+    impl AppData {
         pub fn data_path() -> PathBuf {
-            OrgPaths::app_dir().join("data")
+            AppPaths::app_dir().join("data")
         }
 
         pub fn load_data_path() {
