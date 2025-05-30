@@ -12,10 +12,6 @@ use cli::{GradeType, CLI};
 use log::{debug, error, info, trace, warn};
 use paths::AppData;
 use simple_logger::SimpleLogger;
-use shadow_rs::shadow;
-
-// Enable build metadata
-shadow!(build);
 
 // TODO:
 // Core:
